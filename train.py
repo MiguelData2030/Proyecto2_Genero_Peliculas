@@ -1,18 +1,17 @@
 """
-train.py — Entrenamiento del modelo de clasificación de géneros de películas
+train.py — Entrenamiento del modelo de clasificacion de generos de peliculas
 MIAD Uniandes — Proyecto 2
 
-Pipeline: TF-IDF (50 000 features, bigramas) + Regresión Logística One-vs-Rest
-Métrica de referencia: ROC AUC macro ≈ 0.899 en validación
+Pipeline: TF-IDF (20 000 features, bigramas) + Regresion Logistica One-vs-Rest
+Metrica de referencia: ROC AUC macro aprox 0.899 en validacion
 
-Este script se ejecuta una única vez durante el despliegue en Render
+Este script se ejecuta durante el despliegue en Render
 para generar el artefacto model_pipeline.pkl.
 """
 
-import warnings
-warnings.filterwarnings("ignore")
-
 import ast
+import os
+import sys
 import joblib
 import numpy as np
 import pandas as pd
@@ -32,13 +31,13 @@ DATA_URL = (
 )
 OUTPUT_FILE = "model_pipeline.pkl"
 
-# Hiperparámetros óptimos obtenidos con RandomizedSearchCV (50 iteraciones, 5 folds)
+# Hiperparametros optimos (RandomizedSearchCV 50 iter, 5 folds)
 BEST_PARAMS = {
-    "max_features": 50_000,
-    "ngram_range": (1, 2),
-    "min_df": 1,
-    "max_df": 0.95,
-    "C": 1.0,
+    "max_features": 20_000,   # reducido de 50k para menor uso de memoria
+    "ngram_range":  (1, 2),
+    "min_df":       2,
+    "max_df":       0.95,
+    "C":            1.0,
 }
 
 
@@ -47,15 +46,15 @@ BEST_PARAMS = {
 # ──────────────────────────────────────────────
 def load_data(url: str) -> pd.DataFrame:
     """Descarga y prepara el conjunto de entrenamiento."""
-    print(f"[1/4] Descargando datos desde {url} ...")
+    print(f"[1/4] Descargando datos desde GitHub ...")
     df = pd.read_csv(url, encoding="UTF-8", index_col=0)
 
     # Parsear genres de string a lista
     df["genres"] = df["genres"].apply(ast.literal_eval)
 
-    # Texto combinado: título + sinopsis
+    # Texto combinado: titulo + sinopsis
     df["title"] = df["title"].astype(str)
-    df["plot"] = df["plot"].astype(str)
+    df["plot"]  = df["plot"].astype(str)
     df["info_pelicula"] = df["title"] + " " + df["plot"]
 
     # Eliminar duplicados exactos
@@ -70,13 +69,13 @@ def load_data(url: str) -> pd.DataFrame:
 
 def train(df: pd.DataFrame):
     """Entrena el pipeline y lo guarda en disco."""
-    # Binarización multilabel
+    # Binarizacion multilabel
     print("[2/4] Binarizando etiquetas multilabel ...")
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(df["genres"])
-    print(f"    Géneros ({len(mlb.classes_)}): {list(mlb.classes_)}")
+    print(f"    Generos ({len(mlb.classes_)}): {list(mlb.classes_)}")
 
-    # Pipeline TF-IDF + Regresión Logística
+    # Pipeline TF-IDF + Regresion Logistica
     print("[3/4] Entrenando pipeline TF-IDF + Logistic Regression ...")
     pipeline = Pipeline(
         [
@@ -101,22 +100,24 @@ def train(df: pd.DataFrame):
                         C=BEST_PARAMS["C"],
                         random_state=SEED,
                     ),
-                    n_jobs=-1,
+                    n_jobs=1,   # 1 job en free tier (0.1 CPU)
                 ),
             ),
         ]
     )
     pipeline.fit(df["info_pelicula"], y)
+    print("    Entrenamiento completado.")
 
     # Serializar artefacto
     print(f"[4/4] Guardando artefacto en '{OUTPUT_FILE}' ...")
     artifact = {
         "pipeline": pipeline,
-        "mlb": mlb,
-        "genres": list(mlb.classes_),
+        "mlb":      mlb,
+        "genres":   list(mlb.classes_),
     }
     joblib.dump(artifact, OUTPUT_FILE)
-    print("    ¡Listo! Modelo guardado correctamente.")
+    size_mb = os.path.getsize(OUTPUT_FILE) / (1024 * 1024)
+    print(f"    Artefacto guardado: {size_mb:.1f} MB")
     return artifact
 
 
@@ -124,5 +125,18 @@ def train(df: pd.DataFrame):
 # Punto de entrada
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
-    df = load_data(DATA_URL)
-    train(df)
+    print("=" * 60)
+    print("ENTRENAMIENTO MODELO — CLASIFICACION GENERO PELICULAS")
+    print("=" * 60)
+    try:
+        df = load_data(DATA_URL)
+        train(df)
+        print("=" * 60)
+        print("LISTO — modelo guardado correctamente.")
+        print("=" * 60)
+        sys.exit(0)
+    except Exception as e:
+        print(f"\nERROR durante el entrenamiento: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
