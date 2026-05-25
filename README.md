@@ -121,25 +121,95 @@ git push → Render detecta cambios
 
 ---
 
+## ⚙️ ¿Cómo funciona la aplicación?
+
+La aplicación tiene dos componentes principales: **`train.py`** y **`app.py`**. Así es el flujo completo:
+
+### 1. Entrenamiento del modelo (`train.py`)
+
+Este script se ejecuta **una sola vez**, durante el despliegue en Render (o manualmente en local). Su trabajo es:
+
+```
+1. Descarga el dataset de películas (dataTraining.zip) desde GitHub
+2. Carga los datos en un DataFrame de pandas
+3. Combina título + sinopsis de cada película en un solo texto
+4. Entrena el pipeline:
+      TF-IDF  →  convierte el texto en números (vectores)
+      Regresión Logística One-vs-Rest  →  aprende a predecir los 24 géneros
+5. Guarda todo el modelo entrenado en el archivo "model_pipeline.pkl"
+```
+
+> **¿Qué es `model_pipeline.pkl`?**  
+> Es el modelo ya entrenado, guardado en disco. Contiene el vectorizador TF-IDF y el clasificador. Una vez creado, la API lo usa directamente sin necesidad de volver a entrenar.
+
+---
+
+### 2. Servidor de predicciones (`app.py`)
+
+Cuando la API arranca (al iniciar el servidor), **carga automáticamente** el archivo `model_pipeline.pkl` en memoria. Esto ocurre una sola vez al inicio gracias a la función `lifespan`:
+
+```
+Servidor arranca
+     ↓
+Carga "model_pipeline.pkl" → queda en memoria RAM
+     ↓
+API lista para recibir peticiones
+     ↓
+POST /predict   →  toma título + sinopsis
+               →  el modelo calcula probabilidades para 24 géneros
+               →  retorna JSON con probabilidades y top 3 géneros
+```
+
+**Resumen visual del flujo completo:**
+
+```
+[Despliegue]                          [Uso en producción]
+train.py                              app.py (servidor activo)
+   │                                       │
+   ├─ Descarga datos                       ├─ Carga model_pipeline.pkl al inicio
+   ├─ Entrena TF-IDF + LogReg             │
+   └─ Guarda model_pipeline.pkl ─────────►│
+                                          ├─ POST /predict
+                                          │    ├─ texto = título + sinopsis
+                                          │    ├─ modelo calcula probabilidades
+                                          │    └─ responde JSON con géneros
+                                          │
+                                          └─ POST /predict_batch (hasta 100 películas)
+```
+
+---
+
 ## 🛠️ Ejecución local
+
+Sigue estos pasos para correr la API en tu computador:
 
 ```bash
 # 1. Clonar el repositorio
 git clone https://github.com/MiguelData2030/Proyecto2_Genero_Peliculas.git
 cd Proyecto2_Genero_Peliculas
 
-# 2. Instalar dependencias
+# 2. (Recomendado) Crear entorno virtual
+python -m venv venv
+# En Windows:
+venv\Scripts\activate
+# En Mac/Linux:
+source venv/bin/activate
+
+# 3. Instalar dependencias
 pip install -r requirements.txt
 
-# 3. Entrenar el modelo (genera model_pipeline.pkl)
+# 4. Entrenar el modelo (descarga datos y genera model_pipeline.pkl)
+#    ⚠️  Requiere conexión a internet. Tarda 1-3 minutos.
 python train.py
 
-# 4. Levantar la API
+# 5. Levantar la API
 uvicorn app:app --reload
 
-# 5. Abrir documentación interactiva
-# http://127.0.0.1:8000/docs
+# 6. Abrir la documentación interactiva en el navegador
+#    http://127.0.0.1:8000/docs
 ```
+
+> **Nota:** El paso 4 (`python train.py`) solo es necesario la primera vez o si quieres reentrenar el modelo. Una vez generado `model_pipeline.pkl`, puedes ir directo al paso 5.
 
 ---
 

@@ -63,8 +63,8 @@ app = FastAPI(
         "**Modelo:** TF-IDF (bigramas, 20 000 features) + "
         "Regresión Logística One-vs-Rest (multilabel)\n\n"
         "**Métrica:** ROC AUC macro ≈ 0.899 en validación\n\n"
-        "**Datos:** Dataset de géneros de películas — "
-        "Fabio González, Ph.D. & John Arevalo (Uniandes)"
+        "**Equipo:** Adolfo Ramírez Moreno · Gisell Zarina Gutiérrez Fernandez · "
+        "Miguel Ángel Londoño Díaz · Winston Andrés Licona Briceño"
     ),
     version="2.0.0",
     openapi_tags=tags_metadata,
