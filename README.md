@@ -68,7 +68,7 @@ git push → Render detecta cambios
     "p_Thriller":  0.463,
     "p_Drama":     0.341,
     "p_Adventure": 0.198,
-    ...
+    "...": "..."
   },
   "top_genres": ["Action", "Crime", "Thriller"]
 }
@@ -100,12 +100,12 @@ git push → Render detecta cambios
   "predictions": [
     {
       "title": "Toy Story",
-      "probabilities": { "p_Animation": 0.72, "p_Comedy": 0.61, ... },
+      "probabilities": { "p_Animation": 0.72, "p_Comedy": 0.61 },
       "top_genres": ["Animation", "Comedy", "Family"]
     },
     {
       "title": "Psycho",
-      "probabilities": { "p_Horror": 0.68, "p_Thriller": 0.65, ... },
+      "probabilities": { "p_Horror": 0.68, "p_Thriller": 0.65 },
       "top_genres": ["Horror", "Thriller", "Drama"]
     }
   ],
