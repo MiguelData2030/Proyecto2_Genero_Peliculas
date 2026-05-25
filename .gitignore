@@ -1,0 +1,27 @@
+# Modelo serializado (se genera en Render durante el build)
+model_pipeline.pkl
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Predicciones Kaggle
+*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Imágenes
+*.png
+*.jpg
+*.jpeg
