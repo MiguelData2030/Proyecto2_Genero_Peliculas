@@ -1,17 +1,11 @@
 """
-app.py — API REST para clasificacion de generos de peliculas
-MIAD Uniandes — Proyecto 2
+app.py - API REST para clasificacion de generos de peliculas
+MIAD Uniandes - Proyecto 2
 
 Framework : FastAPI
 Modelo    : TF-IDF + Logistic Regression One-vs-Rest (multilabel)
 Generos   : 24 clases
 Metrica   : ROC AUC macro aprox 0.899
-
-Endpoints:
-  GET  /               -> informacion de la API
-  GET  /health         -> estado del servicio
-  POST /predict        -> prediccion para una pelicula
-  POST /predict_batch  -> prediccion para varias peliculas
 """
 
 import joblib
@@ -24,7 +18,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 # ──────────────────────────────────────────────
-# Carga del modelo al iniciar la aplicacion
+# Carga del modelo al iniciar
 # ──────────────────────────────────────────────
 MODEL_FILE = "model_pipeline.pkl"
 artifact: dict = {}
@@ -34,7 +28,7 @@ artifact: dict = {}
 async def lifespan(app: FastAPI):
     global artifact
     if not os.path.exists(MODEL_FILE):
-        print(f"ADVERTENCIA: '{MODEL_FILE}' no encontrado. Ejecuta python train.py primero.")
+        print(f"ADVERTENCIA: '{MODEL_FILE}' no encontrado.")
     else:
         artifact = joblib.load(MODEL_FILE)
         print(f"Modelo cargado — {len(artifact['genres'])} generos disponibles.")
@@ -43,19 +37,42 @@ async def lifespan(app: FastAPI):
 
 
 # ──────────────────────────────────────────────
-# Aplicacion FastAPI
+# Metadata OpenAPI (estilo Proyecto Andes)
 # ──────────────────────────────────────────────
+tags_metadata = [
+    {
+        "name": "Información",
+        "description": "Endpoints de información general y estado del servicio.",
+    },
+    {
+        "name": "Predicción",
+        "description": (
+            "Endpoints de predicción de géneros cinematográficos. "
+            "Reciben el título y la sinopsis de una película y retornan "
+            "las probabilidades para cada uno de los **24 géneros**."
+        ),
+    },
+]
+
 app = FastAPI(
-    title="Movie Genre Classification API",
+    title="API Clasificación Géneros - Películas",
     description=(
-        "API REST para predecir la probabilidad de que una pelicula pertenezca "
-        "a cada uno de los 24 generos cinematograficos, dada su sinopsis y titulo. "
-        "Desarrollada como parte del Proyecto 2 de MIAD Uniandes.\n\n"
-        "**Modelo:** TF-IDF + Regresion Logistica (One-vs-Rest multilabel)\n"
-        "**Metrica:** ROC AUC macro aprox 0.899 en validacion"
+        "Predice la probabilidad de que una película pertenezca a cada uno de los "
+        "**24 géneros cinematográficos**, dada su sinopsis y título. "
+        "Desarrollada como parte del **Proyecto 2 de MIAD Uniandes**.\n\n"
+        "**Modelo:** TF-IDF (bigramas, 20 000 features) + "
+        "Regresión Logística One-vs-Rest (multilabel)\n\n"
+        "**Métrica:** ROC AUC macro ≈ 0.899 en validación\n\n"
+        "**Datos:** Dataset de géneros de películas — "
+        "Fabio González, Ph.D. & John Arevalo (Uniandes)"
     ),
-    version="1.0.0",
+    version="2.0.0",
+    openapi_tags=tags_metadata,
     lifespan=lifespan,
+    contact={
+        "name": "MIAD Uniandes - Proyecto 2",
+        "url": "https://github.com/MiguelData2030/Proyecto2_Genero_Peliculas",
+    },
 )
 
 
@@ -63,32 +80,83 @@ app = FastAPI(
 # Schemas Pydantic
 # ──────────────────────────────────────────────
 class MovieInput(BaseModel):
-    title: str = Field(..., example="The Dark Knight")
-    plot: str  = Field(
+    title: str = Field(
+        ...,
+        example="The Dark Knight",
+        description="Título de la película.",
+    )
+    plot: str = Field(
         ...,
         example=(
             "When the menace known as the Joker wreaks havoc and chaos on the people "
             "of Gotham, Batman must accept one of the greatest psychological and "
             "physical tests of his ability to fight injustice."
         ),
+        description="Sinopsis o descripción de la trama de la película.",
     )
-    year: Optional[int] = Field(None, example=2008)
+    year: Optional[int] = Field(
+        None,
+        example=2008,
+        description="Año de estreno (opcional, no afecta la predicción).",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "title": "The Dark Knight",
+                "plot": (
+                    "When the menace known as the Joker wreaks havoc and chaos "
+                    "on the people of Gotham, Batman must accept one of the greatest "
+                    "psychological and physical tests of his ability to fight injustice."
+                ),
+                "year": 2008,
+            }
+        }
+    }
 
 
 class GenreProbabilities(BaseModel):
-    title: str
-    probabilities: Dict[str, float]
-    top_genres: List[str]
+    title: str = Field(..., description="Título de la película.")
+    probabilities: Dict[str, float] = Field(
+        ...,
+        description="Probabilidades para cada uno de los 24 géneros (p_Action, p_Drama, ...).",
+    )
+    top_genres: List[str] = Field(
+        ...,
+        description="Los 3 géneros con mayor probabilidad predicha.",
+    )
 
 
 class BatchInput(BaseModel):
-    movies: List[MovieInput]
+    movies: List[MovieInput] = Field(
+        ...,
+        description="Lista de películas a clasificar (máximo 100).",
+        example=[
+            {
+                "title": "Toy Story",
+                "plot": (
+                    "A cowboy doll is profoundly threatened and jealous when a new "
+                    "spaceman figure supplants him as top toy in a boy's room."
+                ),
+                "year": 1995,
+            },
+            {
+                "title": "Psycho",
+                "plot": (
+                    "A secretary embezzles money from her employer's client, goes on "
+                    "the run, and checks into a remote motel run by a young man under "
+                    "the domination of his mother."
+                ),
+                "year": 1960,
+            },
+        ],
+    )
 
 
 class BatchOutput(BaseModel):
     predictions: List[GenreProbabilities]
-    total_movies: int
-    processing_time_seconds: float
+    total_movies: int = Field(..., description="Total de películas procesadas.")
+    processing_time_seconds: float = Field(..., description="Tiempo de procesamiento en segundos.")
 
 
 # ──────────────────────────────────────────────
@@ -98,7 +166,7 @@ def _check_model():
     if not artifact:
         raise HTTPException(
             status_code=503,
-            detail="Modelo no disponible. El archivo model_pipeline.pkl no fue encontrado."
+            detail="Modelo no disponible. El archivo model_pipeline.pkl no fue encontrado.",
         )
 
 
@@ -121,33 +189,50 @@ def _top_genres(probs: Dict[str, float], n: int = 3) -> List[str]:
 # ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
-@app.get("/", tags=["Info"])
+@app.get(
+    "/",
+    tags=["Información"],
+    summary="Raíz",
+    response_description="Información general de la API.",
+)
 def root():
-    """Informacion general de la API."""
+    """
+    Retorna información general sobre la API: nombre, versión, modelo,
+    métrica de referencia, géneros disponibles y endpoints.
+    """
     return {
-        "nombre":  "Movie Genre Classification API",
-        "version": "1.0.0",
+        "nombre":  "API Clasificación Géneros - Películas",
+        "version": "2.0.0",
         "descripcion": (
-            "Predice la probabilidad de pertenencia a 24 generos cinematograficos "
-            "dada la sinopsis y el titulo de una pelicula."
+            "Predice la probabilidad de pertenencia a 24 géneros cinematográficos "
+            "dada la sinopsis y el título de una película."
         ),
+        "modelo": "TF-IDF (bigramas, 20k features) + Logistic Regression One-vs-Rest",
+        "metrica_referencia": "ROC AUC macro ≈ 0.899",
+        "proyecto": "MIAD Uniandes - Proyecto 2",
         "generos_disponibles": artifact.get("genres", []),
         "endpoints": {
-            "GET  /":              "Informacion de la API",
+            "GET  /":              "Información de la API",
             "GET  /health":        "Estado del servicio",
-            "POST /predict":       "Prediccion para una pelicula",
-            "POST /predict_batch": "Prediccion para varias peliculas (max 100)",
-            "GET  /docs":          "Documentacion interactiva Swagger",
+            "POST /predict":       "Predicción para una película",
+            "POST /predict_batch": "Predicción para varias películas (máx. 100)",
+            "GET  /docs":          "Documentación interactiva Swagger UI",
+            "GET  /redoc":         "Documentación ReDoc",
         },
-        "modelo":            "TF-IDF (bigramas, 20k features) + Logistic Regression One-vs-Rest",
-        "metrica_referencia": "ROC AUC macro aprox 0.899",
-        "proyecto":          "MIAD Uniandes - Proyecto 2",
     }
 
 
-@app.get("/health", tags=["Info"])
+@app.get(
+    "/health",
+    tags=["Información"],
+    summary="Salud",
+    response_description="Estado actual del servicio y del modelo cargado.",
+)
 def health():
-    """Verifica que el servicio y el modelo esten disponibles."""
+    """
+    Verifica que el servicio esté operativo y que el modelo de clasificación
+    haya sido cargado correctamente en memoria.
+    """
     return {
         "status":       "ok" if artifact else "model_not_loaded",
         "model_loaded": bool(artifact),
@@ -155,14 +240,27 @@ def health():
     }
 
 
-@app.post("/predict", response_model=GenreProbabilities, tags=["Prediccion"])
+@app.post(
+    "/predict",
+    response_model=GenreProbabilities,
+    tags=["Predicción"],
+    summary="Predecir géneros de una película",
+    response_description="Probabilidades de género y top 3 géneros predichos.",
+)
 def predict(movie: MovieInput):
     """
-    Predice las probabilidades de genero para **una** pelicula.
+    Recibe el título y la sinopsis de **una** película y devuelve la probabilidad
+    de pertenencia a cada uno de los 24 géneros cinematográficos.
 
-    - **title**: Titulo de la pelicula (requerido)
-    - **plot**: Sinopsis de la trama (requerido)
-    - **year**: Año de estreno (opcional)
+    **Entradas requeridas:**
+    - **title**: Título de la película.
+    - **plot**: Sinopsis o descripción de la trama.
+
+    **Salida:**
+    - Diccionario con probabilidades para los 24 géneros (`p_Action`, `p_Drama`, ...).
+    - Lista con los 3 géneros de mayor probabilidad (`top_genres`).
+
+    **Modelo:** TF-IDF + Logistic Regression One-vs-Rest | ROC AUC macro ≈ 0.899
     """
     _check_model()
     try:
@@ -173,23 +271,38 @@ def predict(movie: MovieInput):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Error en la prediccion: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error en la predicción: {exc}")
 
 
-@app.post("/predict_batch", response_model=BatchOutput, tags=["Prediccion"])
+@app.post(
+    "/predict_batch",
+    response_model=BatchOutput,
+    tags=["Predicción"],
+    summary="Predecir géneros de múltiples películas",
+    response_description="Predicciones para cada película junto con el tiempo de procesamiento.",
+)
 def predict_batch(batch: BatchInput):
     """
-    Predice las probabilidades de genero para **multiples** peliculas (max 100).
+    Recibe una lista de películas (máximo **100**) y devuelve las probabilidades
+    de género para cada una, junto con los 3 géneros más probables.
+
+    **Entrada:**
+    - Lista de objetos película, cada uno con `title` y `plot`.
+
+    **Salida:**
+    - Lista de predicciones con probabilidades y top géneros por película.
+    - Tiempo total de procesamiento en segundos.
+
+    **Modelo:** TF-IDF + Logistic Regression One-vs-Rest | ROC AUC macro ≈ 0.899
     """
     _check_model()
     if len(batch.movies) > 100:
-        raise HTTPException(status_code=400, detail="Maximo 100 peliculas por request.")
+        raise HTTPException(status_code=400, detail="Máximo 100 películas por request.")
     try:
         t0       = time.time()
         pipeline = artifact["pipeline"]
         genres   = artifact["genres"]
-
-        texts     = [_build_text(m) for m in batch.movies]
+        texts    = [_build_text(m) for m in batch.movies]
         all_probs = pipeline.predict_proba(texts)
 
         results = []
@@ -214,4 +327,4 @@ def predict_batch(batch: BatchInput):
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Error en prediccion batch: {exc}")
+        raise HTTPException(status_code=500, detail=f"Error en predicción batch: {exc}")
