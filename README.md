@@ -8,6 +8,147 @@
 
 ---
 
+## 🖥️ Guía paso a paso: cómo usar la API
+
+> La API ya está desplegada y funcionando. No necesitas instalar nada. Solo sigue estos pasos desde tu navegador.
+
+---
+
+### Paso 1 — Abre la documentación interactiva
+
+Haz clic en este enlace o pégalo en tu navegador:
+
+👉 **[https://proyecto2-genero-peliculas.onrender.com/docs](https://proyecto2-genero-peliculas.onrender.com/docs)**
+
+Verás una pantalla azul y verde llamada **Swagger UI**. Esta es la interfaz oficial de la API — desde aquí puedes probarla sin escribir código.
+
+> ⚠️ **Importante:** La API está alojada en el plan gratuito de Render. Si lleva varios minutos sin usarse, entra en "reposo". La **primera vez que abras la página puede tardar 30–60 segundos** en cargar. Es normal — espera hasta que aparezca la interfaz completa.
+
+---
+
+### Paso 2 — Verifica que el modelo está cargado
+
+Antes de hacer predicciones, confirma que la API está activa:
+
+1. En la pantalla de Swagger, busca la sección **"Información"**
+2. Haz clic en la fila verde que dice **`GET /health`**
+3. Haz clic en el botón **"Try it out"** (aparece a la derecha)
+4. Haz clic en el botón azul **"Execute"**
+5. Baja hasta **"Response body"** y verifica que ves:
+
+```json
+{
+  "status": "ok",
+  "model_loaded": true,
+  "num_genres": 24
+}
+```
+
+✅ Si `"model_loaded"` es `true` y `"num_genres"` es `24`, la API está lista para predecir.
+
+---
+
+### Paso 3 — Predice el género de una película
+
+1. En la pantalla de Swagger, busca la sección **"Predicción"**
+2. Haz clic en la fila azul que dice **`POST /predict`**
+3. Haz clic en el botón **"Try it out"**
+4. Verás un cuadro de texto con un JSON de ejemplo. **Reemplaza** ese contenido con los datos de tu película. Por ejemplo:
+
+```json
+{
+  "title": "The Dark Knight",
+  "plot": "When the menace known as the Joker wreaks havoc and chaos on the people of Gotham, Batman must accept one of the greatest psychological and physical tests of his ability to fight injustice.",
+  "year": 2008
+}
+```
+
+> 💡 `title` = título de la película  
+> 💡 `plot` = sinopsis o descripción de la trama (en inglés da mejores resultados)  
+> 💡 `year` = año (opcional, no afecta la predicción)
+
+5. Haz clic en el botón azul **"Execute"**
+6. Baja hasta **"Response body"** y verás el resultado:
+
+```json
+{
+  "title": "The Dark Knight",
+  "probabilities": {
+    "p_Action": 0.3437,
+    "p_Thriller": 0.3235,
+    "p_Drama": 0.3214,
+    "p_Adventure": 0.2286,
+    ...
+  },
+  "top_genres": ["Action", "Thriller", "Drama"]
+}
+```
+
+**¿Qué significa cada campo?**
+- **`probabilities`** → probabilidad (entre 0 y 1) de que la película pertenezca a cada uno de los 24 géneros
+- **`top_genres`** → los 3 géneros con mayor probabilidad (los más probables)
+
+---
+
+### Paso 4 — Predice géneros para varias películas a la vez
+
+Si quieres clasificar varias películas en una sola llamada:
+
+1. En la sección **"Predicción"**, haz clic en la fila azul **`POST /predict_batch`**
+2. Haz clic en **"Try it out"**
+3. En el cuadro de texto, ingresa una lista de películas (máximo 100):
+
+```json
+{
+  "movies": [
+    {
+      "title": "Toy Story",
+      "plot": "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room.",
+      "year": 1995
+    },
+    {
+      "title": "The Shining",
+      "plot": "A family heads to an isolated hotel for the winter where a sinister presence influences the father into violence, while his psychic son sees horrific forebodings from both past and future.",
+      "year": 1980
+    }
+  ]
+}
+```
+
+4. Haz clic en **"Execute"**
+5. El resultado incluirá las predicciones para cada película y el tiempo total de procesamiento:
+
+```json
+{
+  "predictions": [
+    {
+      "title": "Toy Story",
+      "probabilities": { "p_Animation": 0.72, "p_Comedy": 0.61, ... },
+      "top_genres": ["Animation", "Comedy", "Family"]
+    },
+    {
+      "title": "The Shining",
+      "probabilities": { "p_Horror": 0.74, "p_Thriller": 0.58, ... },
+      "top_genres": ["Horror", "Thriller", "Drama"]
+    }
+  ],
+  "total_movies": 2,
+  "processing_time_seconds": 0.031
+}
+```
+
+---
+
+### Resumen rápido
+
+| Qué quieres hacer | Endpoint | Cómo |
+|---|---|---|
+| Verificar que la API funciona | `GET /health` | Abre `/docs` → sección Información → `/health` → Try it out → Execute |
+| Clasificar **una** película | `POST /predict` | Abre `/docs` → sección Predicción → `/predict` → Try it out → pega el JSON → Execute |
+| Clasificar **varias** películas | `POST /predict_batch` | Abre `/docs` → sección Predicción → `/predict_batch` → Try it out → pega el JSON → Execute |
+
+---
+
 ## 📌 Descripción
 
 El modelo utiliza un pipeline de **TF-IDF + Regresión Logística One-vs-Rest (multilabel)** entrenado sobre ~7 895 películas. El texto de entrada combina el título y la sinopsis de la película.
