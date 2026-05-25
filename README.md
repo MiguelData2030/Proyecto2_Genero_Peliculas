@@ -1,13 +1,16 @@
-# 🎬 Movie Genre Classification API
+# 🎬 API Clasificación Géneros - Películas
 
 > **MIAD Uniandes — Proyecto 2**  
 > API REST para predecir la probabilidad de que una película pertenezca a cada uno de los 24 géneros cinematográficos, dada su sinopsis y título.
+
+🔗 **API en producción:** [https://proyecto2-genero-peliculas.onrender.com](https://proyecto2-genero-peliculas.onrender.com)  
+📖 **Documentación Swagger:** [https://proyecto2-genero-peliculas.onrender.com/docs](https://proyecto2-genero-peliculas.onrender.com/docs)
 
 ---
 
 ## 📌 Descripción
 
-El modelo utiliza un pipeline de **TF-IDF + Regresión Logística One-vs-Rest (multilabel)** entrenado sobre ~7 895 películas del dataset del Profesor Fabio González (Uniandes). El texto de entrada combina el título y la sinopsis de la película.
+El modelo utiliza un pipeline de **TF-IDF + Regresión Logística One-vs-Rest (multilabel)** entrenado sobre ~7 895 películas. El texto de entrada combina el título y la sinopsis de la película.
 
 - **Métrica de referencia:** ROC AUC macro ≈ 0.899 en validación
 - **Géneros predichos (24):** Action, Adventure, Animation, Biography, Comedy, Crime, Documentary, Drama, Family, Fantasy, Film-Noir, History, Horror, Music, Musical, Mystery, News, Romance, Sci-Fi, Short, Sport, Thriller, War, Western
@@ -19,7 +22,7 @@ El modelo utiliza un pipeline de **TF-IDF + Regresión Logística One-vs-Rest (m
 La API está disponible en:
 
 ```
-https://movie-genre-classification-api.onrender.com
+https://proyecto2-genero-peliculas.onrender.com
 ```
 
 ### Flujo de despliegue automático
@@ -27,21 +30,22 @@ https://movie-genre-classification-api.onrender.com
 ```
 git push → Render detecta cambios
          → pip install -r requirements.txt
-         → python train.py          # entrena y guarda model_pipeline.pkl
-         → uvicorn app:app ...      # levanta la API
+         → python train.py     # descarga datos, entrena y guarda model_pipeline.pkl
+         → uvicorn app:app ... # levanta la API con el modelo cargado
 ```
 
 ---
 
 ## 🔌 Endpoints
 
-| Método | Ruta            | Descripción                                  |
-|--------|-----------------|----------------------------------------------|
-| GET    | `/`             | Información general de la API                |
-| GET    | `/health`       | Estado del servicio                          |
-| POST   | `/predict`      | Predicción para una película                 |
-| POST   | `/predict_batch`| Predicción para múltiples películas (máx.100)|
-| GET    | `/docs`         | Documentación interactiva Swagger            |
+| Método | Ruta             | Descripción                                   |
+|--------|------------------|-----------------------------------------------|
+| GET    | `/`              | Información general de la API                 |
+| GET    | `/health`        | Estado del servicio y modelo                  |
+| POST   | `/predict`       | Predicción para una película                  |
+| POST   | `/predict_batch` | Predicción para múltiples películas (máx. 100)|
+| GET    | `/docs`          | Documentación interactiva Swagger UI          |
+| GET    | `/redoc`         | Documentación ReDoc                           |
 
 ---
 
@@ -63,14 +67,13 @@ git push → Render detecta cambios
 {
   "title": "The Dark Knight",
   "probabilities": {
-    "p_Action":    0.521,
-    "p_Crime":     0.487,
-    "p_Thriller":  0.463,
-    "p_Drama":     0.341,
-    "p_Adventure": 0.198,
+    "p_Action":    0.3437,
+    "p_Thriller":  0.3235,
+    "p_Drama":     0.3214,
+    "p_Adventure": 0.2286,
     "...": "..."
   },
-  "top_genres": ["Action", "Crime", "Thriller"]
+  "top_genres": ["Action", "Thriller", "Drama"]
 }
 ```
 
@@ -84,11 +87,13 @@ git push → Render detecta cambios
   "movies": [
     {
       "title": "Toy Story",
-      "plot": "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room."
+      "plot": "A cowboy doll is profoundly threatened and jealous when a new spaceman figure supplants him as top toy in a boy's room.",
+      "year": 1995
     },
     {
       "title": "Psycho",
-      "plot": "A secretary embezzles money from her employer's client, goes on the run, and checks into a remote motel run by a young man under the domination of his mother."
+      "plot": "A secretary embezzles money from her employer's client, goes on the run, and checks into a remote motel run by a young man under the domination of his mother.",
+      "year": 1960
     }
   ]
 }
@@ -100,12 +105,12 @@ git push → Render detecta cambios
   "predictions": [
     {
       "title": "Toy Story",
-      "probabilities": { "p_Animation": 0.72, "p_Comedy": 0.61 },
+      "probabilities": { "p_Animation": 0.72, "p_Comedy": 0.61, "..." : "..." },
       "top_genres": ["Animation", "Comedy", "Family"]
     },
     {
       "title": "Psycho",
-      "probabilities": { "p_Horror": 0.68, "p_Thriller": 0.65 },
+      "probabilities": { "p_Horror": 0.68, "p_Thriller": 0.65, "...": "..." },
       "top_genres": ["Horror", "Thriller", "Drama"]
     }
   ],
@@ -142,10 +147,11 @@ uvicorn app:app --reload
 
 ```
 Proyecto2_Genero_Peliculas/
-├── app.py                  # API FastAPI (endpoints y lógica de inferencia)
+├── app.py                  # API FastAPI (endpoints e inferencia)
 ├── train.py                # Entrenamiento del modelo y serialización
 ├── requirements.txt        # Dependencias Python
 ├── render.yaml             # Configuración despliegue Render.com
+├── .python-version         # Versión de Python para Render
 ├── README.md               # Documentación
 └── .gitignore
 ```
@@ -157,22 +163,30 @@ Proyecto2_Genero_Peliculas/
 ```
 Entrada (título + sinopsis)
        ↓
+requests.get() — descarga dataTraining.zip directamente
+       ↓
 TF-IDF Vectorizer
-  • max_features = 50 000
+  • max_features = 20 000
   • ngram_range  = (1, 2)
-  • min_df = 1  |  max_df = 0.95
+  • min_df = 2  |  max_df = 0.95
   • sublinear_tf = True
   • stop_words = "english"
        ↓
 OneVsRestClassifier
-  └── LogisticRegression (liblinear, C=1.0)
+  └── LogisticRegression (liblinear, C=1.0, n_jobs=1)
        ↓
 Probabilidades para 24 géneros
 ```
 
 ---
 
-## 👥 Autores
+## 👥 Integrantes
 
-Proyecto 2 — MIAD Uniandes  
-Datos: Fabio González, Ph.D. & John Arevalo — https://arxiv.org/abs/1702.01992
+| Nombre |
+|--------|
+| Adolfo Ramírez Moreno |
+| Gisell Zarina Gutiérrez Fernandez |
+| Miguel Ángel Londoño Díaz |
+| Winston Andrés Licona Briceño |
+
+**Proyecto 2 — MIAD Uniandes**
